@@ -9,8 +9,8 @@ from helpers.decorators import admin_only
 @admin_only
 async def create_cmd(client, message):
     user_id = message.from_user.id
-    if not userbot:
-        return await message.reply_text("❌ UserBot is not configured.")
+    if not userbot or not userbot.is_connected:
+        return await message.reply_text("❌ UserBot is not running. Please check your `STRING_SESSION`.")
 
     buttons = [
         [
@@ -40,43 +40,51 @@ async def handle_create_callback(client, query):
         else:
             await finalize_creation(client, query)
 
-async def finalize_creation(client, query):
-    user_id = query.from_user.id
+async def finalize_creation(client, query_or_msg, user_id=None):
+    if user_id is None:
+        user_id = query_or_msg.from_user.id
+
     state_data = await States.get_state(user_id)
     data = state_data["data"]
 
-    name = data.get("name")
-    privacy = data.get("privacy")
+    name = data.get("name", "Unnamed")
+    desc = data.get("description", "Created via UserBot Manager")
+    privacy = data.get("privacy", "private")
     username = data.get("username")
-    chat_type = data.get("chat_type")
+    chat_type = data.get("chat_type", "channel")
     image = data.get("image")
 
-    await query.edit_message_text("⏳ **Creating...**")
+    edit_func = query_or_msg.edit_message_text if hasattr(query_or_msg, "edit_message_text") else query_or_msg.edit_text
+    await edit_func("⏳ **Creating...**")
 
     try:
         if chat_type == "channel":
-            chat = await userbot.create_channel(name, "Created via UserBot Manager")
+            chat = await userbot.create_channel(str(name), str(desc))
         else:
-            chat = await userbot.create_supergroup(name, "Created via UserBot Manager")
+            chat = await userbot.create_supergroup(str(name), str(desc))
 
         if image:
             await userbot.set_chat_photo(chat.id, photo=image)
             if os.path.exists(image): os.remove(image)
 
         invite_link = ""
-        if privacy == "public":
-            await userbot.set_chat_username(chat.id, username)
-            invite_link = f"https://t.me/{username}"
+        if privacy == "public" and username:
+            try:
+                await userbot.set_chat_username(chat.id, str(username))
+                invite_link = f"https://t.me/{username}"
+            except Exception as ue:
+                invite_link = await userbot.export_chat_invite_link(chat.id)
+                await query_or_msg.reply_text(f"⚠️ **Username Error:** {ue}\nCreated as Private instead.")
         else:
             invite_link = await userbot.export_chat_invite_link(chat.id)
 
-        await query.edit_message_text(
+        await edit_func(
             f"✅ **{chat_type.capitalize()} Created!**\n\n"
             f"**Name:** {name}\n"
             f"**ID:** `{chat.id}`\n"
             f"**Link:** {invite_link}"
         )
     except Exception as e:
-        await query.edit_message_text(f"❌ **Failed to create:** {e}")
+        await edit_func(f"❌ **Failed to create:** {e}")
 
     await States.clear_state(user_id)

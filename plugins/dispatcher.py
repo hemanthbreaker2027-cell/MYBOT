@@ -27,12 +27,12 @@ async def dispatcher(client, message):
 
     # --- POST COLLECTION FLOW ---
     elif state == "COLLECT_POSTS":
-        if not userbot:
-            return await message.reply_text("❌ UserBot not configured.")
+        if not userbot or not userbot.is_connected:
+            return await message.reply_text("❌ UserBot not configured or not running.")
 
         try:
-            # Bot copies message to UserBot's Saved Messages so UserBot can access it later
-            # userbot.me.id is the User's own ID
+            # We copy the message to the UserBot's own chat
+            # This ensures UserBot has access and we can copy it later with buttons
             sent_msg = await message.copy(userbot.me.id)
 
             msg_ref = {

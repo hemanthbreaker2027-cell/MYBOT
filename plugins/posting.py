@@ -11,7 +11,8 @@ from database.mongo import get_stickers
 @Client.on_message(filters.command(["channels", "groups"]) & filters.private)
 @admin_only
 async def list_chats(client, message):
-    if not userbot: return await message.reply_text("❌ UserBot not configured.")
+    if not userbot or not userbot.is_connected:
+        return await message.reply_text("❌ UserBot not configured or not running.")
 
     cmd = message.command[0]
     await message.reply_text(f"🔍 **Fetching your {cmd}...**")
@@ -21,13 +22,11 @@ async def list_chats(client, message):
         chat = dialog.chat
 
         try:
-            # Check for Channels
             if cmd == "channels" and chat.type == ChatType.CHANNEL:
                 member = await userbot.get_chat_member(chat.id, "me")
                 if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
                     buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
 
-            # Check for Groups
             elif cmd == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
                 member = await userbot.get_chat_member(chat.id, "me")
                 if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
@@ -38,7 +37,6 @@ async def list_chats(client, message):
     if not buttons:
         return await message.reply_text(f"No {cmd} found where you are admin.")
 
-    # Simple pagination/limit to 20 for now to stay within button limits
     await message.reply_text(f"📋 **Select a {cmd[:-1]} to post:**", reply_markup=InlineKeyboardMarkup(buttons[:20]))
 
 @Client.on_callback_query(filters.regex(r"^sel_post_"))
@@ -46,7 +44,7 @@ async def select_for_post(client, query):
     chat_id = int(query.data.split("_")[2])
     user_id = query.from_user.id
     await States.set_state(user_id, "COLLECT_POSTS", {"chat_id": chat_id, "messages": []})
-    await query.edit_message_text(f"📝 **Selected Chat ID:** `{chat_id}`\n\nSend your posts now (text, image, links, buttons, albums, etc.). Use `/done` when finished.")
+    await query.edit_message_text(f"📝 **Selected Chat ID:** `{chat_id}`\n\nSend your posts now. Use `/done` when finished.")
 
 @Client.on_message(filters.command("done") & filters.private)
 @admin_only
@@ -57,15 +55,17 @@ async def done_command(client, message):
     data = state_data["data"]
 
     if state == "COLLECT_POSTS":
+        if not userbot or not userbot.is_connected:
+            return await message.reply_text("❌ UserBot not running.")
+
         chat_id = data["chat_id"]
-        messages = data["messages"] # List of {"from_chat_id": int, "message_id": int, "media_group_id": str}
+        messages = data["messages"]
         if not messages:
             return await message.reply_text("No posts collected.")
 
         status = await message.reply_text(f"🚀 **Posting messages...**")
         stickers = await get_stickers()
 
-        # Group by media_group_id to handle albums
         grouped = []
         last_group_id = None
         current_group = []
@@ -91,25 +91,20 @@ async def done_command(client, message):
         for item in grouped:
             try:
                 if isinstance(item, list):
-                    # Media Group - UserBot copies from the chat with Bot
                     await userbot.copy_media_group(
                         chat_id=chat_id,
                         from_chat_id=item[0]["from_chat_id"],
                         message_id=item[0]["message_id"]
                     )
                 else:
-                    # Single message - UserBot copies from the chat with Bot
-                    await userbot.copy_message(
-                        chat_id=chat_id,
-                        from_chat_id=item["from_chat_id"],
-                        message_id=item["message_id"]
-                    )
+                    # To preserve buttons, we fetch the message first
+                    orig_msg = await userbot.get_messages(item["from_chat_id"], item["message_id"])
+                    await orig_msg.copy(chat_id)
 
                 if stickers:
-                    # After each post, send a random sticker
                     await userbot.send_sticker(chat_id, random.choice(stickers))
 
-                await asyncio.sleep(0.5) # Avoid FloodWait
+                await asyncio.sleep(0.5)
             except Exception as e:
                 await message.reply_text(f"❌ **Error posting:** {e}")
 
