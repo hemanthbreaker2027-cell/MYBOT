@@ -1,0 +1,8 @@
+pyrogram
+telethon
+tgcrypto
+python-dotenv
+motor
+pymongo
+asyncio
+aiohttp
