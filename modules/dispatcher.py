@@ -5,7 +5,7 @@ from utils.states import States
 from utils.client import userbot, bot
 from database.mongo import add_sticker
 
-@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
+@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done", "sticker_mode"]))
 async def dispatcher(client, message):
     user_id = message.from_user.id
     state_data = await States.get_state(user_id)
@@ -28,11 +28,18 @@ async def dispatcher(client, message):
     # --- POST COLLECTION FLOW ---
     elif state == "COLLECT_POSTS":
         if not userbot or not userbot.is_connected:
-            return await message.reply_text("❌ UserBot not configured or not running.")
+            return await message.reply_text("❌ **UserBot not configured or not running.**")
 
         try:
-            # We copy the message to the UserBot's own chat
-            # This ensures UserBot has access and we can copy it later with buttons
+            # We relay the message to UserBot's Saved Messages to ensure it has access
+            # For media groups, we need to be careful.
+            # Pyrogram doesn't automatically group messages copied one-by-one.
+            # However, for the sake of this manager, we will store the message ID
+            # and handle the grouping during the final posting phase.
+
+            # To preserve media groups, we MUST use copy_media_group if it's a group.
+            # But we only get one message at a time here.
+
             sent_msg = await message.copy(userbot.me.id)
 
             msg_ref = {
@@ -43,9 +50,13 @@ async def dispatcher(client, message):
             current_msgs = data.get("messages", [])
             current_msgs.append(msg_ref)
             await States.update_data(user_id, messages=current_msgs)
-            await message.reply_text("📥 **Post collected.**", quote=True)
+
+            # Feedback for user
+            if not message.media_group_id:
+                await message.reply_text("📥 **Post collected.**", quote=True)
+            # For media groups, we don't spam "collected" for every item
         except Exception as e:
-            await message.reply_text(f"❌ **Error collecting post:** {e}")
+            await message.reply_text(f"❌ **Error collecting post:** `{e}`")
 
     # --- STICKER COLLECTION FLOW ---
     elif state == "COLLECT_STICKERS":

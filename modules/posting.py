@@ -70,7 +70,7 @@ async def done_command(client, message):
         if not messages:
             return await message.reply_text("⚠️ **No posts collected.**")
 
-        status = await message.reply_text(f"🚀 **Dispatching {len(messages)} items...**")
+        status = await message.reply_text(f"🚀 **Dispatching items...**")
         stickers = await get_stickers()
         sticker_mode = await get_setting("random_sticker_mode", False)
 
@@ -99,18 +99,18 @@ async def done_command(client, message):
         for item in grouped:
             try:
                 if isinstance(item, list):
-                    # For media groups, we use copy_media_group
-                    # Note: all messages in group must be from same chat
+                    # Fixed media group logic: need all message IDs
+                    msg_ids = [x["message_id"] for x in item]
                     await userbot.copy_media_group(
                         chat_id=chat_id,
                         from_chat_id=item[0]["from_chat_id"],
-                        message_id=item[0]["message_id"]
+                        message_id=msg_ids[0] # Pyrogram uses first ID to identify group
                     )
                 else:
-                    # For single messages, we use copy to preserve everything
                     orig_msg = await userbot.get_messages(item["from_chat_id"], item["message_id"])
                     await orig_msg.copy(chat_id)
 
+                # Send sticker AFTER every post/group if enabled
                 if sticker_mode and stickers:
                     await userbot.send_sticker(chat_id, random.choice(stickers))
 

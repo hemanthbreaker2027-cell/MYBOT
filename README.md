@@ -24,7 +24,7 @@ An advanced, production-ready Telegram UserBot management system built with Pyth
 - `/delete` - Safely delete owned entities with confirmation.
 - `/link` - Manage and generate invite links.
 - `/random_sticker` - Add stickers to the auto-posting engine.
-- `/sticker_mode` - Toggle the automatic sticker injection.
+- `/sticker_mode` - Toggle the automatic sticker injection AFTER each post.
 - `/add_admin` - [Owner Only] Promote a user to admin.
 - `/remove_admin` - [Owner Only] Demote an admin.
 
