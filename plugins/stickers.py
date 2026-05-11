@@ -6,5 +6,5 @@ from helpers.decorators import admin_only
 @admin_only
 async def random_sticker_cmd(client, message):
     user_id = message.from_user.id
-    States.set_state(user_id, "COLLECT_STICKERS", {"stickers": []})
+    await States.set_state(user_id, "COLLECT_STICKERS", {"stickers": []})
     await message.reply_text("🎨 **Send unlimited stickers.**\nUse `/done` when finished.")

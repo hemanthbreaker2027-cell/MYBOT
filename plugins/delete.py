@@ -1,9 +1,8 @@
-import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from helpers.client import userbot
 from helpers.decorators import admin_only
-from pyrogram.enums import ChatType
+from pyrogram.enums import ChatType, ChatMemberStatus
 
 @Client.on_message(filters.command("delete") & filters.private)
 @admin_only
@@ -25,13 +24,20 @@ async def del_list_chats(client, query):
     buttons = []
     async for dialog in userbot.get_dialogs():
         chat = dialog.chat
-        if target == "channels" and chat.type == ChatType.CHANNEL:
-            buttons.append([InlineKeyboardButton(chat.title, callback_data=f"del_conf_{chat.id}")])
-        elif target == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
-            buttons.append([InlineKeyboardButton(chat.title, callback_data=f"del_conf_{chat.id}")])
+        try:
+            if target == "channels" and chat.type == ChatType.CHANNEL:
+                member = await userbot.get_chat_member(chat.id, "me")
+                if member.status == ChatMemberStatus.OWNER:
+                    buttons.append([InlineKeyboardButton(chat.title, callback_data=f"del_conf_{chat.id}")])
+            elif target == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+                member = await userbot.get_chat_member(chat.id, "me")
+                if member.status == ChatMemberStatus.OWNER:
+                    buttons.append([InlineKeyboardButton(chat.title, callback_data=f"del_conf_{chat.id}")])
+        except Exception:
+            continue
 
     if not buttons:
-        return await query.edit_message_text(f"No {target} found.")
+        return await query.edit_message_text(f"No {target} found where you are owner.")
 
     await query.edit_message_text(f"📋 **Select a {target[:-1]} to DELETE:**", reply_markup=InlineKeyboardMarkup(buttons[:20]))
 

@@ -5,7 +5,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from helpers.client import userbot
 from helpers.states import States
 from helpers.decorators import admin_only
-from pyrogram.enums import ChatType
+from pyrogram.enums import ChatType, ChatMemberStatus
 from database.mongo import get_stickers
 
 @Client.on_message(filters.command(["channels", "groups"]) & filters.private)
@@ -19,13 +19,22 @@ async def list_chats(client, message):
     buttons = []
     async for dialog in userbot.get_dialogs():
         chat = dialog.chat
-        if cmd == "channels" and chat.type == ChatType.CHANNEL:
-            buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
-        elif cmd == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
-            buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
+
+        try:
+            if cmd == "channels" and chat.type == ChatType.CHANNEL:
+                member = await userbot.get_chat_member(chat.id, "me")
+                if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
+                    buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
+
+            elif cmd == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
+                member = await userbot.get_chat_member(chat.id, "me")
+                if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
+                    buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
+        except Exception:
+            continue
 
     if not buttons:
-        return await message.reply_text(f"No {cmd} found.")
+        return await message.reply_text(f"No {cmd} found where you are admin.")
 
     await message.reply_text(f"📋 **Select a {cmd[:-1]} to post:**", reply_markup=InlineKeyboardMarkup(buttons[:20]))
 
@@ -34,7 +43,7 @@ async def select_for_post(client, query):
     chat_id = int(query.data.split("_")[2])
     user_id = query.from_user.id
     await States.set_state(user_id, "COLLECT_POSTS", {"chat_id": chat_id, "messages": []})
-    await query.edit_message_text(f"📝 **Selected Chat ID:** `{chat_id}`\n\nSend your posts now. Use `/done` when finished.")
+    await query.edit_message_text(f"📝 **Selected Chat ID:** `{chat_id}`\n\nSend your posts now (text, image, links, buttons, albums, etc.). Use `/done` when finished.")
 
 @Client.on_message(filters.command("done") & filters.private)
 @admin_only
@@ -46,26 +55,57 @@ async def done_command(client, message):
 
     if state == "COLLECT_POSTS":
         chat_id = data["chat_id"]
-        messages = data["messages"] # List of {"chat_id": int, "message_id": int}
+        messages = data["messages"] # List of {"chat_id": int, "message_id": int, "media_group_id": str}
         if not messages:
             return await message.reply_text("No posts collected.")
 
-        status = await message.reply_text(f"🚀 **Posting {len(messages)} messages...**")
+        status = await message.reply_text(f"🚀 **Posting messages...**")
         stickers = await get_stickers()
 
-        for msg_ref in messages:
+        # Group by media_group_id
+        grouped = []
+        last_group_id = None
+        current_group = []
+
+        for m in messages:
+            if m.get("media_group_id"):
+                if m["media_group_id"] == last_group_id:
+                    current_group.append(m)
+                else:
+                    if current_group:
+                        grouped.append(current_group)
+                    current_group = [m]
+                    last_group_id = m["media_group_id"]
+            else:
+                if current_group:
+                    grouped.append(current_group)
+                    current_group = []
+                    last_group_id = None
+                grouped.append(m)
+        if current_group:
+            grouped.append(current_group)
+
+        for item in grouped:
             try:
-                # Use UserBot instance (userbot) instead of Bot instance (client)
-                await userbot.copy_message(
-                    chat_id=chat_id,
-                    from_chat_id=msg_ref["chat_id"],
-                    message_id=msg_ref["message_id"]
-                )
+                if isinstance(item, list):
+                    # Media Group
+                    await userbot.copy_media_group(
+                        chat_id=chat_id,
+                        from_chat_id=item[0]["chat_id"],
+                        message_id=item[0]["message_id"]
+                    )
+                else:
+                    # Single message
+                    await userbot.copy_message(
+                        chat_id=chat_id,
+                        from_chat_id=item["chat_id"],
+                        message_id=item["message_id"]
+                    )
 
                 if stickers:
                     await userbot.send_sticker(chat_id, random.choice(stickers))
 
-                await asyncio.sleep(0.5) # Anti-flood
+                await asyncio.sleep(0.5)
             except Exception as e:
                 await message.reply_text(f"❌ **Error posting:** {e}")
 
@@ -83,7 +123,11 @@ async def collect_messages(client, message):
     state_data = await States.get_state(user_id)
     state = state_data["state"]
     if state == "COLLECT_POSTS":
-        msg_ref = {"chat_id": message.chat.id, "message_id": message.id}
+        msg_ref = {
+            "chat_id": message.chat.id,
+            "message_id": message.id,
+            "media_group_id": message.media_group_id
+        }
         current_msgs = state_data["data"].get("messages", [])
         current_msgs.append(msg_ref)
         await States.update_data(user_id, messages=current_msgs)
