@@ -1,3 +1,4 @@
+import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from helpers.client import userbot
@@ -7,6 +8,8 @@ from pyrogram.enums import ChatType
 @Client.on_message(filters.command("delete") & filters.private)
 @admin_only
 async def delete_cmd(client, message):
+    if not userbot:
+        return await message.reply_text("❌ UserBot not configured.")
     buttons = [
         [
             InlineKeyboardButton("📢 Channels", callback_data="del_list_channels"),
@@ -17,6 +20,7 @@ async def delete_cmd(client, message):
 
 @Client.on_callback_query(filters.regex(r"^del_list_"))
 async def del_list_chats(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     target = query.data.split("_")[2]
     buttons = []
     async for dialog in userbot.get_dialogs():
@@ -33,6 +37,7 @@ async def del_list_chats(client, query):
 
 @Client.on_callback_query(filters.regex(r"^del_conf_"))
 async def del_confirm(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     chat_id = int(query.data.split("_")[2])
     buttons = [
         [
@@ -44,6 +49,7 @@ async def del_confirm(client, query):
 
 @Client.on_callback_query(filters.regex(r"^del_do_"))
 async def del_do(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     chat_id = int(query.data.split("_")[2])
     try:
         await userbot.delete_channel(chat_id)

@@ -7,6 +7,8 @@ from pyrogram.enums import ChatType
 @Client.on_message(filters.command("link") & filters.private)
 @admin_only
 async def link_cmd(client, message):
+    if not userbot:
+        return await message.reply_text("❌ UserBot not configured.")
     buttons = [
         [
             InlineKeyboardButton("📢 Channels", callback_data="lnk_list_channels"),
@@ -17,6 +19,7 @@ async def link_cmd(client, message):
 
 @Client.on_callback_query(filters.regex(r"^lnk_list_"))
 async def lnk_list_chats(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     target = query.data.split("_")[2]
     buttons = []
     async for dialog in userbot.get_dialogs():
@@ -26,10 +29,14 @@ async def lnk_list_chats(client, query):
         elif target == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
             buttons.append([InlineKeyboardButton(chat.title, callback_data=f"lnk_get_{chat.id}")])
 
+    if not buttons:
+        return await query.edit_message_text(f"No {target} found.")
+
     await query.edit_message_text(f"📋 **Select a {target[:-1]}:**", reply_markup=InlineKeyboardMarkup(buttons[:20]))
 
 @Client.on_callback_query(filters.regex(r"^lnk_get_"))
 async def lnk_get(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     chat_id = int(query.data.split("_")[2])
     chat = await userbot.get_chat(chat_id)
 
@@ -46,6 +53,7 @@ async def lnk_get(client, query):
 
 @Client.on_callback_query(filters.regex(r"^lnk_(req|norm)_"))
 async def lnk_gen(client, query):
+    if not userbot: return await query.answer("UserBot not configured", show_alert=True)
     action, chat_id = query.data.split("_")[1], int(query.data.split("_")[2])
     try:
         if action == "req":

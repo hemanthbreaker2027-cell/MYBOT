@@ -17,10 +17,6 @@ async def gen_string_start(client, message_or_query):
         [
             InlineKeyboardButton("Pyrogram", callback_data="gs_pyrogram"),
             InlineKeyboardButton("Telethon", callback_data="gs_telethon")
-        ],
-        [
-            InlineKeyboardButton("Pyrogram V2", callback_data="gs_pyrogram2"),
-            InlineKeyboardButton("Telethon String", callback_data="gs_telethon_s")
         ]
     ]
     text = "🛡 **Select the library type for your session string:**"
@@ -31,64 +27,79 @@ async def gen_string_start(client, message_or_query):
         await message_or_query.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex(r"^gs_"))
-async def gs_ask_phone(client, query):
+async def gs_ask_api_id(client, query):
     lib_type = query.data.split("_")[1]
     user_id = query.from_user.id
-    States.set_state(user_id, "GS_PHONE", {"type": lib_type})
+    await States.set_state(user_id, "GS_API_ID", {"type": lib_type})
 
-    await query.edit_message_text("📱 **Send your phone number in international format.**\nExample: `+1234567890`",
+    await query.edit_message_text("🆔 **Send your API_ID:**\nGet it from [my.telegram.org](https://my.telegram.org)",
                                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]))
 
 @Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
-async def handle_input(client, message):
+async def handle_gen_string_inputs(client, message):
     user_id = message.from_user.id
-    state_data = States.get_state(user_id)
+    state_data = await States.get_state(user_id)
     state = state_data["state"]
     data = state_data["data"]
 
-    if not state:
+    if not state or not state.startswith("GS_"):
         return
 
-    if state == "GS_PHONE":
-        phone = message.text.strip()
-        States.update_data(user_id, phone=phone)
-        States.set_state(user_id, "GS_OTP")
+    if state == "GS_API_ID":
+        try:
+            api_id = int(message.text.strip())
+            await States.update_data(user_id, api_id=api_id)
+            await States.set_state(user_id, "GS_API_HASH")
+            await message.reply_text("🔑 **Send your API_HASH:**")
+        except ValueError:
+            await message.reply_text("❌ **Invalid API_ID.** Please send a number.")
 
-        api_id = int(os.getenv("API_ID", 2040))
-        api_hash = os.getenv("API_HASH", "b18441a1ff607e106bee3edad22c6834")
+    elif state == "GS_API_HASH":
+        api_hash = message.text.strip()
+        await States.update_data(user_id, api_hash=api_hash)
+        await States.set_state(user_id, "GS_PHONE")
+        await message.reply_text("📱 **Send your phone number in international format.**\nExample: `+1234567890`")
+
+    elif state == "GS_PHONE":
+        phone = message.text.strip()
+        await States.update_data(user_id, phone=phone)
+        await States.set_state(user_id, "GS_OTP")
+
+        api_id = data["api_id"]
+        api_hash = data["api_hash"]
 
         try:
             if "pyrogram" in data["type"]:
                 temp_client = Client("temp", api_id=api_id, api_hash=api_hash, in_memory=True)
                 await temp_client.connect()
                 code_info = await temp_client.send_code(phone)
-                States.update_data(user_id, client=temp_client, phone_code_hash=code_info.phone_code_hash)
+                await States.update_data(user_id, client=temp_client, phone_code_hash=code_info.phone_code_hash)
             else:
                 temp_client = TelegramClient(StringSession(), api_id, api_hash)
                 await temp_client.connect()
                 send_code = await temp_client.send_code_request(phone)
-                States.update_data(user_id, client=temp_client, phone_code_hash=send_code.phone_code_hash)
+                await States.update_data(user_id, client=temp_client, phone_code_hash=send_code.phone_code_hash)
 
             await message.reply_text("📩 **OTP Sent!**\nSend the OTP in space-separated format (e.g., `1 2 3 4 5`).")
         except Exception as e:
             await message.reply_text(f"❌ **Error:** {e}")
-            States.clear_state(user_id)
+            await States.clear_state(user_id)
 
     elif state == "GS_OTP":
         otp = message.text.replace(" ", "").strip()
-        await message.delete() # Security: delete OTP
+        await message.delete()
 
         lib_type = data["type"]
         temp_client = data["client"]
         phone = data["phone"]
-        phone_code_hash = data["phone_code_hash"]
+        phone_code_hash = data.get("phone_code_hash")
 
         try:
             if "pyrogram" in lib_type:
                 try:
                     await temp_client.sign_in(phone, phone_code_hash, otp)
                 except SessionPasswordNeeded:
-                    States.set_state(user_id, "GS_PASSWORD")
+                    await States.set_state(user_id, "GS_PASSWORD")
                     await message.reply_text("🔐 **2FA Enabled!** Send your password:")
                     return
 
@@ -100,7 +111,7 @@ async def handle_input(client, message):
                     await temp_client.sign_in(phone, otp, phone_code_hash=phone_code_hash)
                 except Exception as e:
                     if "password" in str(e).lower():
-                        States.set_state(user_id, "GS_PASSWORD")
+                        await States.set_state(user_id, "GS_PASSWORD")
                         await message.reply_text("🔐 **2FA Enabled!** Send your password:")
                         return
                     raise e
@@ -109,14 +120,14 @@ async def handle_input(client, message):
                 await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
                 await temp_client.disconnect()
 
-            States.clear_state(user_id)
+            await States.clear_state(user_id)
         except Exception as e:
             await client.send_message(user_id, f"❌ **Error:** {e}")
-            States.clear_state(user_id)
+            await States.clear_state(user_id)
 
     elif state == "GS_PASSWORD":
         password = message.text.strip()
-        await message.delete() # Security: delete password
+        await message.delete()
 
         lib_type = data["type"]
         temp_client = data["client"]
@@ -133,13 +144,13 @@ async def handle_input(client, message):
                 await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
                 await temp_client.disconnect()
 
-            States.clear_state(user_id)
+            await States.clear_state(user_id)
         except Exception as e:
             await client.send_message(user_id, f"❌ **Error:** {e}")
-            States.clear_state(user_id)
+            await States.clear_state(user_id)
 
 @Client.on_callback_query(filters.regex("cancel"))
 async def cancel_action(client, query):
     user_id = query.from_user.id
-    States.clear_state(user_id)
+    await States.clear_state(user_id)
     await query.edit_message_text("❌ Action cancelled.")

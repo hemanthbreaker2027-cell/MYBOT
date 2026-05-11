@@ -12,11 +12,8 @@ async def create_cmd(client, message):
     if not userbot:
         return await message.reply_text("❌ UserBot is not configured.")
 
-    States.set_state(user_id, "CREATE_NAME")
+    await States.set_state(user_id, "CREATE_NAME")
     await message.reply_text("🆕 **Send the name for the new Channel/Group:**")
-
-# More state handlers will be in plugins/create_flow.py or handled by a generic handler
-# I will combine the creation logic in one file for clarity
 
 @Client.on_callback_query(filters.regex(r"^cr_"))
 async def handle_create_callback(client, query):
@@ -26,16 +23,16 @@ async def handle_create_callback(client, query):
 
     if action == "privacy":
         privacy = data[2]
-        States.update_data(user_id, privacy=privacy)
+        await States.update_data(user_id, privacy=privacy)
         if privacy == "public":
-            States.set_state(user_id, "CREATE_USERNAME")
+            await States.set_state(user_id, "CREATE_USERNAME")
             await query.edit_message_text("🌍 **Send a public username (without @):**")
         else:
             await ask_type(query)
 
     elif action == "type":
         chat_type = data[2]
-        States.update_data(user_id, chat_type=chat_type)
+        await States.update_data(user_id, chat_type=chat_type)
         await finalize_creation(client, query)
 
 async def ask_type(query):
@@ -49,7 +46,7 @@ async def ask_type(query):
 
 async def finalize_creation(client, query):
     user_id = query.from_user.id
-    state_data = States.get_state(user_id)
+    state_data = await States.get_state(user_id)
     data = state_data["data"]
 
     name = data.get("name")
@@ -86,4 +83,4 @@ async def finalize_creation(client, query):
     except Exception as e:
         await query.edit_message_text(f"❌ **Failed to create:** {e}")
 
-    States.clear_state(user_id)
+    await States.clear_state(user_id)

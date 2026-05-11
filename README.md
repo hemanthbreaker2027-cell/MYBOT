@@ -12,6 +12,7 @@ A powerful, production-ready Telegram UserBot management system built with Pytho
   - Preserve all formatting, media, and buttons.
   - Auto-inject random stickers after each post.
 - **Secure Admin System:** Only the owner and authorized admins can access management tools.
+- **Health Check Server:** Supports deployment on Render, Koyeb, and Railway with a `PORT` based health check.
 - **Production Ready:** Full Docker support, persistent MongoDB storage.
 
 ## 🛠 Commands
@@ -57,6 +58,7 @@ docker-compose up -d --build
 - `MONGO_URI`: Your MongoDB connection string.
 - `API_ID`: Your Telegram API ID.
 - `API_HASH`: Your Telegram API Hash.
+- `PORT`: (Optional) Port for health check server (Default: 8080).
 
 ## 🔒 Security
 - All sensitive inputs (OTP, Passwords) are automatically deleted.

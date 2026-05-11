@@ -1,31 +1,33 @@
 import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from helpers.client import userbot
 from helpers.states import States
 from helpers.decorators import admin_only
 from plugins.create import ask_type, finalize_creation
 
 @Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
-async def handle_all_inputs(client, message):
+async def handle_creation_inputs(client, message):
     user_id = message.from_user.id
-    state_data = States.get_state(user_id)
+    state_data = await States.get_state(user_id)
     state = state_data["state"]
     data = state_data["data"]
 
-    if not state: return
+    if not state or not state.startswith("CREATE_"):
+        return
 
     # Creation Flow
     if state == "CREATE_NAME":
-        States.update_data(user_id, name=message.text)
-        States.set_state(user_id, "CREATE_IMAGE")
+        await States.update_data(user_id, name=message.text)
+        await States.set_state(user_id, "CREATE_IMAGE")
         await message.reply_text("🖼 **Send a photo for the avatar, or use /skip:**")
 
     elif state == "CREATE_IMAGE":
         if message.photo:
             file_path = await message.download()
-            States.update_data(user_id, image=file_path)
+            await States.update_data(user_id, image=file_path)
         elif message.text == "/skip":
-            States.update_data(user_id, image=None)
+            await States.update_data(user_id, image=None)
         else:
             return await message.reply_text("Please send a photo or /skip.")
 
@@ -38,8 +40,7 @@ async def handle_all_inputs(client, message):
         await message.reply_text("🌍 **Public or Private?**", reply_markup=InlineKeyboardMarkup(buttons))
 
     elif state == "CREATE_USERNAME":
-        States.update_data(user_id, username=message.text.replace("@", ""))
-        # Proceed to ask type
+        await States.update_data(user_id, username=message.text.replace("@", ""))
         buttons = [
             [
                 InlineKeyboardButton("📢 Channel", callback_data="cr_type_channel"),
@@ -47,8 +48,3 @@ async def handle_all_inputs(client, message):
             ]
         ]
         await message.reply_text("❓ **What do you want to create?**", reply_markup=InlineKeyboardMarkup(buttons))
-
-    # Gen String Flow (Already handled in gen_string.py but I'll make sure it doesn't conflict)
-    # The gen_string.py handlers are registered, so this won't be called if they match.
-    # But for safety, I'll move gen_string logic here if needed.
-    # Actually, Pyrogram's multi-plugin handles this by priority/registration order.

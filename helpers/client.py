@@ -6,11 +6,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_ID = int(os.getenv("API_ID", 2040))
-API_HASH = os.getenv("API_HASH", "b18441a1ff607e106bee3edad22c6834")
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 STRING_SESSION = os.getenv("STRING_SESSION")
 OWNER_ID = int(os.getenv("OWNER_ID", 0))
+
+# Defaults if not provided in env for the main bot
+API_ID = int(API_ID) if API_ID else 2040
+API_HASH = API_HASH if API_HASH else "b18441a1ff607e106bee3edad22c6834"
 
 bot = Client(
     "manager_bot",
