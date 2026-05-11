@@ -1,8 +1,8 @@
 import os
 import asyncio
 from pyrogram import Client, filters
-from helpers.states import States
-from helpers.client import userbot, bot
+from utils.states import States
+from utils.client import userbot, bot
 from database.mongo import add_sticker
 
 @Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
@@ -17,12 +17,12 @@ async def dispatcher(client, message):
 
     # --- SESSION GENERATION FLOW ---
     if state.startswith("GS_"):
-        from plugins.gen_string import handle_gen_string_inputs
+        from modules.gen_string import handle_gen_string_inputs
         await handle_gen_string_inputs(client, message)
 
     # --- CREATION FLOW ---
     elif state.startswith("CREATE_"):
-        from plugins.input_handler import handle_creation_inputs
+        from modules.input_handler import handle_creation_inputs
         await handle_creation_inputs(client, message)
 
     # --- POST COLLECTION FLOW ---

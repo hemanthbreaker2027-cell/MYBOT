@@ -1,25 +1,28 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from helpers.decorators import is_admin
+from utils.decorators import is_admin
 
 HELP_TEXT = """
-✨ **Welcome to UserBot Manager!** ✨
+✨ **U S E R B O T  M A N A G E R** ✨
+━━━━━━━━━━━━━━━━━━━
+🛡 **Welcome to the premium control center.**
 
-I am your advanced control center for Telegram automation.
+🛠 **Admin Hub:**
+• `/create` — *New Channels/Groups*
+• `/channels` — *Broadcast to Channels*
+• `/groups` — *Broadcast to Groups*
+• `/delete` — *Remove Entities*
+• `/link` — *Link Management*
+• `/random_sticker` — *Sticker Engine*
+• `/sticker_mode` — *Toggle Auto-Stickers*
+• `/add_admin` — *Promote User*
+• `/remove_admin` — *Demote User*
 
-🛠 **Admin Commands:**
-• `/create` - Create channels/groups
-• `/channels` - Manage and post to channels
-• `/groups` - Manage and post to groups
-• `/delete` - Delete owned entities
-• `/link` - Manage invite links
-• `/random_sticker` - Manage auto-sticker engine
-• `/add_admin` - Add new administrators
+👤 **User Services:**
+• `/gen_string` — *Safe Session Generation*
 
-👤 **User Commands:**
-• `/gen_string` - Generate session strings
-
-🚀 **Select an action below:**
+🚀 **Choose an operation to begin:**
+━━━━━━━━━━━━━━━━━━━
 """
 
 @Client.on_message(filters.command("start") & filters.private)
@@ -43,7 +46,7 @@ async def start_cmd(client, message):
         await message.reply_text(HELP_TEXT, reply_markup=InlineKeyboardMarkup(buttons))
     else:
         await message.reply_text(
-            "👋 **Hello!** I can help you generate Telegram session strings safely.\n\nUse `/gen_string` to start.",
+            "👋 **Greetings!**\n\nI am specialized in generating secure Telegram session strings for **Pyrogram** and **Telethon**.\n\n🛡 Use the button below to start.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔑 Generate String", callback_data="gen_string_start")]
             ])

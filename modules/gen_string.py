@@ -5,7 +5,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import SessionPasswordNeeded, FloodWait
 from telethon import TelegramClient
 from telethon.sessions import StringSession
-from helpers.states import States
+from utils.states import States
 
 temp_clients = {}
 
@@ -17,7 +17,7 @@ async def gen_string_start(client, message_or_query):
 
     buttons = [
         [
-            InlineKeyboardButton("Pyrogram", callback_data="gs_pyrogram"),
+            InlineKeyboardButton("Pyrogram v2", callback_data="gs_pyrogram"),
             InlineKeyboardButton("Telethon", callback_data="gs_telethon")
         ]
     ]
@@ -34,7 +34,7 @@ async def gs_ask_api_id(client, query):
     user_id = query.from_user.id
     await States.set_state(user_id, "GS_API_ID", {"type": lib_type})
 
-    await query.edit_message_text("🆔 **Send your API_ID:**\nGet it from [my.telegram.org](https://my.telegram.org)",
+    await query.edit_message_text("🆔 **Step 1: Send your API_ID:**\nGet it from [my.telegram.org](https://my.telegram.org)",
                                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]))
 
 async def handle_gen_string_inputs(client, message):
@@ -48,15 +48,15 @@ async def handle_gen_string_inputs(client, message):
             api_id = int(message.text.strip())
             await States.update_data(user_id, api_id=api_id)
             await States.set_state(user_id, "GS_API_HASH")
-            await message.reply_text("🔑 **Send your API_HASH:**")
+            await message.reply_text("🔑 **Step 2: Send your API_HASH:**")
         except ValueError:
-            await message.reply_text("❌ **Invalid API_ID.** Please send a number.")
+            await message.reply_text("❌ **Invalid API_ID.** Please send a numeric value.")
 
     elif state == "GS_API_HASH":
         api_hash = message.text.strip()
         await States.update_data(user_id, api_hash=api_hash)
         await States.set_state(user_id, "GS_PHONE")
-        await message.reply_text("📱 **Send your phone number in international format.**\nExample: `+1234567890`")
+        await message.reply_text("📱 **Step 3: Send your phone number in international format.**\nExample: `+1234567890`")
 
     elif state == "GS_PHONE":
         phone = message.text.strip()
@@ -65,6 +65,8 @@ async def handle_gen_string_inputs(client, message):
 
         api_id = data["api_id"]
         api_hash = data["api_hash"]
+
+        status = await message.reply_text("⏳ **Requesting OTP...**")
 
         try:
             if "pyrogram" in data["type"]:
@@ -80,9 +82,9 @@ async def handle_gen_string_inputs(client, message):
                 temp_clients[user_id] = temp_client
                 await States.update_data(user_id, phone_code_hash=send_code.phone_code_hash)
 
-            await message.reply_text("📩 **OTP Sent!**\nSend the OTP in space-separated format (e.g., `1 2 3 4 5`).")
+            await status.edit_text("📩 **OTP Sent Successfully!**\n\n⚠️ **IMPORTANT:** Send the OTP with spaces between numbers.\nExample: `1 2 3 4 5`")
         except Exception as e:
-            await message.reply_text(f"❌ **Error:** {e}")
+            await status.edit_text(f"❌ **Error:** `{e}`")
             await States.clear_state(user_id)
             temp_clients.pop(user_id, None)
 
@@ -93,7 +95,7 @@ async def handle_gen_string_inputs(client, message):
         lib_type = data["type"]
         temp_client = temp_clients.get(user_id)
         if not temp_client:
-            await message.reply_text("❌ **Session expired.** Start again.")
+            await message.reply_text("❌ **Session expired.** Please restart the process.")
             await States.clear_state(user_id)
             return
 
@@ -106,11 +108,11 @@ async def handle_gen_string_inputs(client, message):
                     await temp_client.sign_in(phone, phone_code_hash, otp)
                 except SessionPasswordNeeded:
                     await States.set_state(user_id, "GS_PASSWORD")
-                    await message.reply_text("🔐 **2FA Enabled!** Send your password:")
+                    await message.reply_text("🔐 **2FA Protection Detected!**\nSend your cloud password:")
                     return
 
                 string_session = await temp_client.export_session_string()
-                await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
+                await client.send_message(user_id, f"✅ **Pyrogram Session String Generated:**\n\n`{string_session}`\n\n⚠️ *Keep this safe!*")
                 await temp_client.disconnect()
             else:
                 try:
@@ -118,18 +120,18 @@ async def handle_gen_string_inputs(client, message):
                 except Exception as e:
                     if "password" in str(e).lower():
                         await States.set_state(user_id, "GS_PASSWORD")
-                        await message.reply_text("🔐 **2FA Enabled!** Send your password:")
+                        await message.reply_text("🔐 **2FA Protection Detected!**\nSend your cloud password:")
                         return
                     raise e
 
                 string_session = temp_client.session.save()
-                await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
+                await client.send_message(user_id, f"✅ **Telethon Session String Generated:**\n\n`{string_session}`\n\n⚠️ *Keep this safe!*")
                 await temp_client.disconnect()
 
             await States.clear_state(user_id)
             temp_clients.pop(user_id, None)
         except Exception as e:
-            await client.send_message(user_id, f"❌ **Error:** {e}")
+            await client.send_message(user_id, f"❌ **Login Failed:** `{e}`")
             await States.clear_state(user_id)
             temp_clients.pop(user_id, None)
 
@@ -148,17 +150,17 @@ async def handle_gen_string_inputs(client, message):
             if "pyrogram" in lib_type:
                 await temp_client.check_password(password)
                 string_session = await temp_client.export_session_string()
-                await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
+                await client.send_message(user_id, f"✅ **Pyrogram Session String Generated:**\n\n`{string_session}`")
                 await temp_client.disconnect()
             else:
                 await temp_client.sign_in(password=password)
                 string_session = temp_client.session.save()
-                await client.send_message(user_id, f"✅ **Your Session String:**\n\n`{string_session}`")
+                await client.send_message(user_id, f"✅ **Telethon Session String Generated:**\n\n`{string_session}`")
                 await temp_client.disconnect()
 
             await States.clear_state(user_id)
             temp_clients.pop(user_id, None)
         except Exception as e:
-            await client.send_message(user_id, f"❌ **Error:** {e}")
+            await client.send_message(user_id, f"❌ **2FA Verification Failed:** `{e}`")
             await States.clear_state(user_id)
             temp_clients.pop(user_id, None)

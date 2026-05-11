@@ -1,7 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from helpers.client import userbot
-from helpers.decorators import admin_only
+from utils.client import userbot
+from utils.decorators import admin_only
 from pyrogram.enums import ChatType, ChatMemberStatus
 
 @Client.on_message(filters.command("delete") & filters.private)

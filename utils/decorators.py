@@ -1,5 +1,5 @@
 from pyrogram import filters
-from helpers.client import OWNER_ID
+from utils.client import OWNER_ID
 from database.mongo import is_admin_db
 
 def admin_only(func):

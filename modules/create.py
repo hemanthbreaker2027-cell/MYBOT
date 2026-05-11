@@ -1,16 +1,16 @@
 import os
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from helpers.client import userbot
-from helpers.states import States
-from helpers.decorators import admin_only
+from utils.client import userbot
+from utils.states import States
+from utils.decorators import admin_only
 
 @Client.on_message(filters.command("create") & filters.private)
 @admin_only
 async def create_cmd(client, message):
     user_id = message.from_user.id
     if not userbot or not userbot.is_connected:
-        return await message.reply_text("❌ UserBot is not running. Please check your `STRING_SESSION`.")
+        return await message.reply_text("❌ **UserBot is not running.** Please check your `STRING_SESSION`.")
 
     buttons = [
         [
@@ -18,7 +18,7 @@ async def create_cmd(client, message):
             InlineKeyboardButton("👥 Group", callback_data="cr_type_group")
         ]
     ]
-    await message.reply_text("❓ **What do you want to create?**", reply_markup=InlineKeyboardMarkup(buttons))
+    await message.reply_text("✨ **Step 1: What do you want to create?**", reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex(r"^cr_"))
 async def handle_create_callback(client, query):
@@ -28,17 +28,20 @@ async def handle_create_callback(client, query):
 
     if action == "type":
         chat_type = data[2]
-        await States.set_state(user_id, "CREATE_NAME", {"chat_type": chat_type})
-        await query.edit_message_text(f"🆕 **Send the name for the new {chat_type.capitalize()}:**")
+        await States.set_state(user_id, "CREATE_PRIVACY", {"chat_type": chat_type})
+        buttons = [
+            [
+                InlineKeyboardButton("🌍 Public", callback_data="cr_privacy_public"),
+                InlineKeyboardButton("🔒 Private", callback_data="cr_privacy_private")
+            ]
+        ]
+        await query.edit_message_text(f"🌐 **Step 2: Should the {chat_type} be Public or Private?**", reply_markup=InlineKeyboardMarkup(buttons))
 
     elif action == "privacy":
         privacy = data[2]
         await States.update_data(user_id, privacy=privacy)
-        if privacy == "public":
-            await States.set_state(user_id, "CREATE_USERNAME")
-            await query.edit_message_text("🌍 **Send a public username (without @):**")
-        else:
-            await finalize_creation(client, query)
+        await States.set_state(user_id, "CREATE_NAME")
+        await query.edit_message_text(f"📝 **Step 3: Send a Name for your {privacy} entity:**")
 
 async def finalize_creation(client, query_or_msg, user_id=None):
     if user_id is None:
@@ -48,14 +51,13 @@ async def finalize_creation(client, query_or_msg, user_id=None):
     data = state_data["data"]
 
     name = data.get("name", "Unnamed")
-    desc = data.get("description", "Created via UserBot Manager")
+    desc = data.get("description", "")
     privacy = data.get("privacy", "private")
     username = data.get("username")
     chat_type = data.get("chat_type", "channel")
     image = data.get("image")
 
-    edit_func = query_or_msg.edit_message_text if hasattr(query_or_msg, "edit_message_text") else query_or_msg.edit_text
-    await edit_func("⏳ **Creating...**")
+    status_msg = await client.send_message(user_id, "⏳ **Creating your entity... Please wait.**")
 
     try:
         if chat_type == "channel":
@@ -64,8 +66,11 @@ async def finalize_creation(client, query_or_msg, user_id=None):
             chat = await userbot.create_supergroup(str(name), str(desc))
 
         if image:
-            await userbot.set_chat_photo(chat.id, photo=image)
-            if os.path.exists(image): os.remove(image)
+            try:
+                await userbot.set_chat_photo(chat.id, photo=image)
+                if os.path.exists(image): os.remove(image)
+            except Exception as ie:
+                await client.send_message(user_id, f"⚠️ **Warning:** Could not set profile photo: {ie}")
 
         invite_link = ""
         if privacy == "public" and username:
@@ -74,17 +79,20 @@ async def finalize_creation(client, query_or_msg, user_id=None):
                 invite_link = f"https://t.me/{username}"
             except Exception as ue:
                 invite_link = await userbot.export_chat_invite_link(chat.id)
-                await query_or_msg.reply_text(f"⚠️ **Username Error:** {ue}\nCreated as Private instead.")
+                await client.send_message(user_id, f"⚠️ **Username Error:** {ue}\nEntity created as Private instead.")
         else:
             invite_link = await userbot.export_chat_invite_link(chat.id)
 
-        await edit_func(
-            f"✅ **{chat_type.capitalize()} Created!**\n\n"
-            f"**Name:** {name}\n"
-            f"**ID:** `{chat.id}`\n"
-            f"**Link:** {invite_link}"
+        res_text = (
+            "✅ **Entity Created Successfully!**\n\n"
+            f"👤 **Name:** `{name}`\n"
+            f"🆔 **ID:** `{chat.id}`\n"
+            f"🔗 **Link:** {invite_link}\n"
+            f"🎭 **Type:** {chat_type.capitalize()}\n"
+            f"🌐 **Privacy:** {privacy.capitalize()}"
         )
+        await status_msg.edit_text(res_text)
     except Exception as e:
-        await edit_func(f"❌ **Failed to create:** {e}")
+        await status_msg.edit_text(f"❌ **Failed to create entity:** {e}")
 
     await States.clear_state(user_id)

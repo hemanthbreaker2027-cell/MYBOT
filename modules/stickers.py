@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
-from helpers.states import States
-from helpers.decorators import admin_only
+from utils.states import States
+from utils.decorators import admin_only
 
 @Client.on_message(filters.command("random_sticker") & filters.private)
 @admin_only
