@@ -4,19 +4,13 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from helpers.client import userbot
 from helpers.states import States
 from helpers.decorators import admin_only
-from plugins.create import finalize_creation
 
-@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
 async def handle_creation_inputs(client, message):
     user_id = message.from_user.id
     state_data = await States.get_state(user_id)
     state = state_data["state"]
     data = state_data["data"]
 
-    if not state or not state.startswith("CREATE_"):
-        return
-
-    # Creation Flow
     if state == "CREATE_NAME":
         await States.update_data(user_id, name=message.text)
         await States.set_state(user_id, "CREATE_IMAGE")
@@ -41,18 +35,12 @@ async def handle_creation_inputs(client, message):
 
     elif state == "CREATE_USERNAME":
         await States.update_data(user_id, username=message.text.replace("@", ""))
-        # For public, finalize immediately after getting username
-        # But we need a query object for finalize_creation.
-        # Let's refactor finalize_creation to take message or query.
-        msg = await message.reply_text("⏳ **Finalizing creation...**")
-        # We'll call a modified version or just re-implement here for simplicity.
-        # Actually, let's keep it consistent.
-
         name = data.get("name")
-        privacy = "public"
-        username = message.text.replace("@", "")
-        chat_type = data.get("chat_type")
         image = data.get("image")
+        chat_type = data.get("chat_type")
+        username = message.text.replace("@", "")
+
+        msg = await message.reply_text("⏳ **Finalizing creation...**")
 
         try:
             if chat_type == "channel":

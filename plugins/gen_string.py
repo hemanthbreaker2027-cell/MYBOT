@@ -7,8 +7,6 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from helpers.states import States
 
-# In-memory storage for active clients during session generation
-# Since Client objects are not serializable for MongoDB
 temp_clients = {}
 
 @Client.on_message(filters.command("gen_string") & filters.private)
@@ -39,15 +37,11 @@ async def gs_ask_api_id(client, query):
     await query.edit_message_text("🆔 **Send your API_ID:**\nGet it from [my.telegram.org](https://my.telegram.org)",
                                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="cancel")]]))
 
-@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
 async def handle_gen_string_inputs(client, message):
     user_id = message.from_user.id
     state_data = await States.get_state(user_id)
     state = state_data["state"]
     data = state_data["data"]
-
-    if not state or not state.startswith("GS_"):
-        return
 
     if state == "GS_API_ID":
         try:
@@ -99,7 +93,7 @@ async def handle_gen_string_inputs(client, message):
         lib_type = data["type"]
         temp_client = temp_clients.get(user_id)
         if not temp_client:
-            await message.reply_text("❌ **Session expired.** Start again with /gen_string.")
+            await message.reply_text("❌ **Session expired.** Start again.")
             await States.clear_state(user_id)
             return
 
@@ -146,7 +140,7 @@ async def handle_gen_string_inputs(client, message):
         lib_type = data["type"]
         temp_client = temp_clients.get(user_id)
         if not temp_client:
-            await message.reply_text("❌ **Session expired.** Start again.")
+            await message.reply_text("❌ **Session expired.**")
             await States.clear_state(user_id)
             return
 

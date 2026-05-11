@@ -2,7 +2,7 @@ import asyncio
 import random
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from helpers.client import userbot
+from helpers.client import userbot, bot
 from helpers.states import States
 from helpers.decorators import admin_only
 from pyrogram.enums import ChatType, ChatMemberStatus
@@ -21,11 +21,13 @@ async def list_chats(client, message):
         chat = dialog.chat
 
         try:
+            # Check for Channels
             if cmd == "channels" and chat.type == ChatType.CHANNEL:
                 member = await userbot.get_chat_member(chat.id, "me")
                 if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
                     buttons.append([InlineKeyboardButton(chat.title, callback_data=f"sel_post_{chat.id}")])
 
+            # Check for Groups
             elif cmd == "groups" and chat.type in [ChatType.GROUP, ChatType.SUPERGROUP]:
                 member = await userbot.get_chat_member(chat.id, "me")
                 if member.status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
@@ -36,6 +38,7 @@ async def list_chats(client, message):
     if not buttons:
         return await message.reply_text(f"No {cmd} found where you are admin.")
 
+    # Simple pagination/limit to 20 for now to stay within button limits
     await message.reply_text(f"📋 **Select a {cmd[:-1]} to post:**", reply_markup=InlineKeyboardMarkup(buttons[:20]))
 
 @Client.on_callback_query(filters.regex(r"^sel_post_"))
@@ -55,14 +58,14 @@ async def done_command(client, message):
 
     if state == "COLLECT_POSTS":
         chat_id = data["chat_id"]
-        messages = data["messages"] # List of {"chat_id": int, "message_id": int, "media_group_id": str}
+        messages = data["messages"] # List of {"from_chat_id": int, "message_id": int, "media_group_id": str}
         if not messages:
             return await message.reply_text("No posts collected.")
 
         status = await message.reply_text(f"🚀 **Posting messages...**")
         stickers = await get_stickers()
 
-        # Group by media_group_id
+        # Group by media_group_id to handle albums
         grouped = []
         last_group_id = None
         current_group = []
@@ -88,24 +91,25 @@ async def done_command(client, message):
         for item in grouped:
             try:
                 if isinstance(item, list):
-                    # Media Group
+                    # Media Group - UserBot copies from the chat with Bot
                     await userbot.copy_media_group(
                         chat_id=chat_id,
-                        from_chat_id=item[0]["chat_id"],
+                        from_chat_id=item[0]["from_chat_id"],
                         message_id=item[0]["message_id"]
                     )
                 else:
-                    # Single message
+                    # Single message - UserBot copies from the chat with Bot
                     await userbot.copy_message(
                         chat_id=chat_id,
-                        from_chat_id=item["chat_id"],
+                        from_chat_id=item["from_chat_id"],
                         message_id=item["message_id"]
                     )
 
                 if stickers:
+                    # After each post, send a random sticker
                     await userbot.send_sticker(chat_id, random.choice(stickers))
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5) # Avoid FloodWait
             except Exception as e:
                 await message.reply_text(f"❌ **Error posting:** {e}")
 
@@ -113,29 +117,6 @@ async def done_command(client, message):
         await States.clear_state(user_id)
 
     elif state == "COLLECT_STICKERS":
-        stickers = data.get("stickers", [])
-        await message.reply_text(f"✅ **Collected {len(stickers)} stickers.**")
+        stickers_list = data.get("stickers", [])
+        await message.reply_text(f"✅ **Collected {len(stickers_list)} stickers.**")
         await States.clear_state(user_id)
-
-@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done"]))
-async def collect_messages(client, message):
-    user_id = message.from_user.id
-    state_data = await States.get_state(user_id)
-    state = state_data["state"]
-    if state == "COLLECT_POSTS":
-        msg_ref = {
-            "chat_id": message.chat.id,
-            "message_id": message.id,
-            "media_group_id": message.media_group_id
-        }
-        current_msgs = state_data["data"].get("messages", [])
-        current_msgs.append(msg_ref)
-        await States.update_data(user_id, messages=current_msgs)
-    elif state == "COLLECT_STICKERS":
-        if message.sticker:
-            from database.mongo import add_sticker
-            await add_sticker(message.sticker.file_id)
-            current_stickers = state_data["data"].get("stickers", [])
-            current_stickers.append(message.sticker.file_id)
-            await States.update_data(user_id, stickers=current_stickers)
-            await message.reply_text("✅ Sticker saved.")
