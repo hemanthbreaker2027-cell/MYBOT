@@ -12,8 +12,13 @@ async def create_cmd(client, message):
     if not userbot:
         return await message.reply_text("❌ UserBot is not configured.")
 
-    await States.set_state(user_id, "CREATE_NAME")
-    await message.reply_text("🆕 **Send the name for the new Channel/Group:**")
+    buttons = [
+        [
+            InlineKeyboardButton("📢 Channel", callback_data="cr_type_channel"),
+            InlineKeyboardButton("👥 Group", callback_data="cr_type_group")
+        ]
+    ]
+    await message.reply_text("❓ **What do you want to create?**", reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex(r"^cr_"))
 async def handle_create_callback(client, query):
@@ -21,28 +26,19 @@ async def handle_create_callback(client, query):
     data = query.data.split("_")
     action = data[1]
 
-    if action == "privacy":
+    if action == "type":
+        chat_type = data[2]
+        await States.set_state(user_id, "CREATE_NAME", {"chat_type": chat_type})
+        await query.edit_message_text(f"🆕 **Send the name for the new {chat_type.capitalize()}:**")
+
+    elif action == "privacy":
         privacy = data[2]
         await States.update_data(user_id, privacy=privacy)
         if privacy == "public":
             await States.set_state(user_id, "CREATE_USERNAME")
             await query.edit_message_text("🌍 **Send a public username (without @):**")
         else:
-            await ask_type(query)
-
-    elif action == "type":
-        chat_type = data[2]
-        await States.update_data(user_id, chat_type=chat_type)
-        await finalize_creation(client, query)
-
-async def ask_type(query):
-    buttons = [
-        [
-            InlineKeyboardButton("📢 Channel", callback_data="cr_type_channel"),
-            InlineKeyboardButton("👥 Group", callback_data="cr_type_group")
-        ]
-    ]
-    await query.edit_message_text("❓ **What do you want to create?**", reply_markup=InlineKeyboardMarkup(buttons))
+            await finalize_creation(client, query)
 
 async def finalize_creation(client, query):
     user_id = query.from_user.id

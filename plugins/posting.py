@@ -55,8 +55,8 @@ async def done_command(client, message):
 
         for msg_ref in messages:
             try:
-                # Use copy_message to preserve everything
-                await client.copy_message(
+                # Use UserBot instance (userbot) instead of Bot instance (client)
+                await userbot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=msg_ref["chat_id"],
                     message_id=msg_ref["message_id"]

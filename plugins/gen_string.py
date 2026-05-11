@@ -7,6 +7,10 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from helpers.states import States
 
+# In-memory storage for active clients during session generation
+# Since Client objects are not serializable for MongoDB
+temp_clients = {}
+
 @Client.on_message(filters.command("gen_string") & filters.private)
 @Client.on_callback_query(filters.regex("gen_string_start"))
 async def gen_string_start(client, message_or_query):
@@ -73,24 +77,32 @@ async def handle_gen_string_inputs(client, message):
                 temp_client = Client("temp", api_id=api_id, api_hash=api_hash, in_memory=True)
                 await temp_client.connect()
                 code_info = await temp_client.send_code(phone)
-                await States.update_data(user_id, client=temp_client, phone_code_hash=code_info.phone_code_hash)
+                temp_clients[user_id] = temp_client
+                await States.update_data(user_id, phone_code_hash=code_info.phone_code_hash)
             else:
                 temp_client = TelegramClient(StringSession(), api_id, api_hash)
                 await temp_client.connect()
                 send_code = await temp_client.send_code_request(phone)
-                await States.update_data(user_id, client=temp_client, phone_code_hash=send_code.phone_code_hash)
+                temp_clients[user_id] = temp_client
+                await States.update_data(user_id, phone_code_hash=send_code.phone_code_hash)
 
             await message.reply_text("📩 **OTP Sent!**\nSend the OTP in space-separated format (e.g., `1 2 3 4 5`).")
         except Exception as e:
             await message.reply_text(f"❌ **Error:** {e}")
             await States.clear_state(user_id)
+            temp_clients.pop(user_id, None)
 
     elif state == "GS_OTP":
         otp = message.text.replace(" ", "").strip()
         await message.delete()
 
         lib_type = data["type"]
-        temp_client = data["client"]
+        temp_client = temp_clients.get(user_id)
+        if not temp_client:
+            await message.reply_text("❌ **Session expired.** Start again with /gen_string.")
+            await States.clear_state(user_id)
+            return
+
         phone = data["phone"]
         phone_code_hash = data.get("phone_code_hash")
 
@@ -121,16 +133,22 @@ async def handle_gen_string_inputs(client, message):
                 await temp_client.disconnect()
 
             await States.clear_state(user_id)
+            temp_clients.pop(user_id, None)
         except Exception as e:
             await client.send_message(user_id, f"❌ **Error:** {e}")
             await States.clear_state(user_id)
+            temp_clients.pop(user_id, None)
 
     elif state == "GS_PASSWORD":
         password = message.text.strip()
         await message.delete()
 
         lib_type = data["type"]
-        temp_client = data["client"]
+        temp_client = temp_clients.get(user_id)
+        if not temp_client:
+            await message.reply_text("❌ **Session expired.** Start again.")
+            await States.clear_state(user_id)
+            return
 
         try:
             if "pyrogram" in lib_type:
@@ -145,12 +163,8 @@ async def handle_gen_string_inputs(client, message):
                 await temp_client.disconnect()
 
             await States.clear_state(user_id)
+            temp_clients.pop(user_id, None)
         except Exception as e:
             await client.send_message(user_id, f"❌ **Error:** {e}")
             await States.clear_state(user_id)
-
-@Client.on_callback_query(filters.regex("cancel"))
-async def cancel_action(client, query):
-    user_id = query.from_user.id
-    await States.clear_state(user_id)
-    await query.edit_message_text("❌ Action cancelled.")
+            temp_clients.pop(user_id, None)
