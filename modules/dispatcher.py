@@ -5,8 +5,10 @@ from utils.states import States
 from utils.client import userbot, bot
 from database.mongo import add_sticker
 
-@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done", "sticker_mode"]))
+@Client.on_message(filters.private & ~filters.command(["start", "gen_string", "create", "channels", "groups", "delete", "link", "random_sticker", "add_admin", "done", "sticker_mode", "admins", "remove_admin", "cancel"]))
 async def dispatcher(client, message):
+    if not message.from_user:
+        return
     user_id = message.from_user.id
     state_data = await States.get_state(user_id)
     state = state_data["state"]
@@ -49,6 +51,12 @@ async def dispatcher(client, message):
             if not message.media_group_id:
                 await message.reply_text("📥 **Post collected.**", quote=True)
             # For media groups, we don't spam "collected" for every item
+            else:
+                # But we can show a small hint or react
+                try:
+                    await message.react("📥")
+                except:
+                    pass
         except Exception as e:
             await message.reply_text(f"❌ **Error collecting post:** `{e}`")
 

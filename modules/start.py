@@ -17,6 +17,7 @@ HELP_TEXT = """
 • `/sticker_mode` — *Toggle Auto-Stickers*
 • `/add_admin` — *Promote User*
 • `/remove_admin` — *Demote User*
+• `/cancel` — *Cancel ongoing process*
 
 👤 **User Services:**
 • `/gen_string` — *Safe Session Generation*
@@ -24,6 +25,13 @@ HELP_TEXT = """
 🚀 **Choose an operation to begin:**
 ━━━━━━━━━━━━━━━━━━━
 """
+
+@Client.on_message(filters.command("cancel") & filters.private)
+async def cancel_cmd(client, message):
+    from utils.states import States
+    user_id = message.from_user.id
+    await States.clear_state(user_id)
+    await message.reply_text("✅ **Current operation has been cancelled.**")
 
 @Client.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):

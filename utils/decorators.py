@@ -4,6 +4,8 @@ from database.mongo import is_admin_db
 
 def admin_only(func):
     async def wrapper(client, message):
+        if not message.from_user:
+            return
         user_id = message.from_user.id
         if await is_admin_db(user_id, OWNER_ID):
             return await func(client, message)
