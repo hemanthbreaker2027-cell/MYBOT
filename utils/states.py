@@ -1,6 +1,4 @@
-from database.mongo import db
-
-states_coll = db["states"] if db is not None else None
+from database.mongo import states_coll
 
 class States:
     # State management for conversations with MongoDB persistence
@@ -25,7 +23,7 @@ class States:
         if states_coll is not None:
             doc = await states_coll.find_one({"user_id": user_id})
             if doc:
-                return {"state": doc["state"], "data": doc["data"]}
+                return {"state": doc.get("state"), "data": doc.get("data", {})}
         return {"state": None, "data": {}}
 
     @classmethod
@@ -36,7 +34,8 @@ class States:
     @classmethod
     async def update_data(cls, user_id, **kwargs):
         if states_coll is not None:
+            update_fields = {f"data.{k}": v for k, v in kwargs.items()}
             await states_coll.update_one(
                 {"user_id": user_id},
-                {"$set": {f"data.{k}": v for k, v in kwargs.items()}}
+                {"$set": update_fields}
             )

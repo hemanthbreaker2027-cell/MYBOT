@@ -6,10 +6,14 @@ def admin_only(func):
     async def wrapper(client, message):
         if not message.from_user:
             return
+
         user_id = message.from_user.id
         if await is_admin_db(user_id, OWNER_ID):
             return await func(client, message)
-        # Optional: return a message for non-admins
+
+        # If not admin, we silently ignore or could reply.
+        # For now, let's keep it silent to avoid spamming non-admins.
+
     return wrapper
 
 async def is_admin(user_id: int):

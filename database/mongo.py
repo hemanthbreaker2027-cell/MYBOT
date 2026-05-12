@@ -1,17 +1,32 @@
 import os
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 MONGO_URL = os.getenv("MONGO_URL")
-client = AsyncIOMotorClient(MONGO_URL) if MONGO_URL else None
-db = client["userbot_manager"] if client else None
+
+if not MONGO_URL:
+    logger.error("MONGO_URL is missing in environment variables!")
+    client = None
+    db = None
+else:
+    try:
+        client = AsyncIOMotorClient(MONGO_URL)
+        db = client["userbot_manager"]
+        logger.info("Connected to MongoDB successfully.")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        client = None
+        db = None
 
 # Collections
 admins_coll = db["admins"] if db is not None else None
 stickers_coll = db["stickers"] if db is not None else None
 settings_coll = db["settings"] if db is not None else None
+states_coll = db["states"] if db is not None else None
 
 async def add_admin(user_id: int):
     if admins_coll is not None:
