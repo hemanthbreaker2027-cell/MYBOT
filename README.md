@@ -43,7 +43,7 @@ API_HASH=your_api_hash
 BOT_TOKEN=your_bot_token
 STRING_SESSION=your_userbot_string_session
 OWNER_ID=your_telegram_id
-MONGO_URI=your_mongodb_uri
+MONGO_URL=your_mongodb_uri
 ```
 
 ### 2. Local Deployment

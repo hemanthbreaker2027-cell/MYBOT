@@ -7,11 +7,18 @@ class States:
     @classmethod
     async def set_state(cls, user_id, state, data=None):
         if states_coll is not None:
-            await states_coll.update_one(
-                {"user_id": user_id},
-                {"$set": {"state": state, "data": data or {}}},
-                upsert=True
-            )
+            if data is not None:
+                await states_coll.update_one(
+                    {"user_id": user_id},
+                    {"$set": {"state": state, "data": data}},
+                    upsert=True
+                )
+            else:
+                await states_coll.update_one(
+                    {"user_id": user_id},
+                    {"$set": {"state": state}, "$setOnInsert": {"data": {}}},
+                    upsert=True
+                )
 
     @classmethod
     async def get_state(cls, user_id):

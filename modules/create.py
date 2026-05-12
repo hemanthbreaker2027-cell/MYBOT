@@ -63,14 +63,13 @@ async def finalize_creation(client, query_or_msg, user_id=None):
 
     try:
         if chat_type == "channel":
-            chat = await userbot.create_channel(str(name), str(desc))
+            chat = await userbot.create_channel(title=str(name), description=str(desc))
         else:
-            chat = await userbot.create_supergroup(str(name), str(desc))
+            chat = await userbot.create_supergroup(title=str(name), description=str(desc))
 
         # --- AUTO ADMIN PROMOTION ---
         try:
             bot_me = await client.get_me()
-            await userbot.add_chat_members(chat.id, bot_me.id)
             await userbot.promote_chat_member(
                 chat.id,
                 bot_me.id,

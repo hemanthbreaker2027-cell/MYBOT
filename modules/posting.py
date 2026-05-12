@@ -107,8 +107,11 @@ async def done_command(client, message):
                         message_id=msg_ids[0]
                     )
                 else:
-                    orig_msg = await userbot.get_messages(item["from_chat_id"], item["message_id"])
-                    await orig_msg.copy(chat_id=target_chat_id)
+                    await userbot.copy_message(
+                        chat_id=target_chat_id,
+                        from_chat_id=item["from_chat_id"],
+                        message_id=item["message_id"]
+                    )
 
                 if sticker_mode and stickers:
                     await userbot.send_sticker(target_chat_id, random.choice(stickers))
