@@ -31,19 +31,13 @@ async def dispatcher(client, message):
             return await message.reply_text("❌ **UserBot not configured or not running.**")
 
         try:
-            # We relay the message to UserBot's Saved Messages to ensure it has access
-            # For media groups, we need to be careful.
-            # Pyrogram doesn't automatically group messages copied one-by-one.
-            # However, for the sake of this manager, we will store the message ID
-            # and handle the grouping during the final posting phase.
-
-            # To preserve media groups, we MUST use copy_media_group if it's a group.
-            # But we only get one message at a time here.
-
+            # We relay the message to the UserBot account's chat with this Bot.
+            # This ensures the UserBot has access to the content.
+            # Note: message.copy() from Bot to UserBot lands in UserBot's inbox.
             sent_msg = await message.copy(userbot.me.id)
 
             msg_ref = {
-                "from_chat_id": userbot.me.id,
+                "from_chat_id": (await client.get_me()).id, # The Bot's ID is the chat where UserBot sees these messages
                 "message_id": sent_msg.id,
                 "media_group_id": message.media_group_id
             }
