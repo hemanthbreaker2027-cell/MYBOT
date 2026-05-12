@@ -1,7 +1,9 @@
 import os
+import asyncio
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.client import userbot
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ChatPrivileges
+from pyrogram.errors import FloodWait, PeerIdInvalid, ChatAdminRequired
+from utils.client import userbot, bot
 from utils.states import States
 from utils.decorators import admin_only
 
@@ -57,13 +59,35 @@ async def finalize_creation(client, query_or_msg, user_id=None):
     chat_type = data.get("chat_type", "channel")
     image = data.get("image")
 
-    status_msg = await client.send_message(user_id, "⏳ **Creating your entity... Please wait.**")
+    status_msg = await client.send_message(user_id, "⏳ **Creating your entity and configuring Bot...**")
 
     try:
         if chat_type == "channel":
             chat = await userbot.create_channel(str(name), str(desc))
         else:
             chat = await userbot.create_supergroup(str(name), str(desc))
+
+        # --- AUTO ADMIN PROMOTION ---
+        try:
+            bot_me = await client.get_me()
+            await userbot.add_chat_members(chat.id, bot_me.id)
+            await userbot.promote_chat_member(
+                chat.id,
+                bot_me.id,
+                privileges=ChatPrivileges(
+                    can_manage_chat=True,
+                    can_post_messages=True,
+                    can_edit_messages=True,
+                    can_delete_messages=True,
+                    can_invite_users=True,
+                    can_pin_messages=True,
+                    can_manage_video_chats=True,
+                    is_anonymous=False
+                )
+            )
+            promotion_status = "✅ Bot promoted to Administrator."
+        except Exception as pe:
+            promotion_status = f"⚠️ Could not promote Bot: {pe}"
 
         if image:
             try:
@@ -89,9 +113,12 @@ async def finalize_creation(client, query_or_msg, user_id=None):
             f"🆔 **ID:** `{chat.id}`\n"
             f"🔗 **Link:** {invite_link}\n"
             f"🎭 **Type:** {chat_type.capitalize()}\n"
-            f"🌐 **Privacy:** {privacy.capitalize()}"
+            f"🌐 **Privacy:** {privacy.capitalize()}\n\n"
+            f"{promotion_status}"
         )
         await status_msg.edit_text(res_text)
+    except FloodWait as fw:
+        await status_msg.edit_text(f"❌ **FloodWait:** Please wait {fw.value} seconds.")
     except Exception as e:
         await status_msg.edit_text(f"❌ **Failed to create entity:** {e}")
 

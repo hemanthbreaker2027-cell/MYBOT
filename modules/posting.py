@@ -6,6 +6,7 @@ from utils.client import userbot, bot
 from utils.states import States
 from utils.decorators import admin_only
 from pyrogram.enums import ChatType, ChatMemberStatus
+from pyrogram.errors import FloodWait, RPCError
 from database.mongo import get_stickers, get_setting, set_setting
 
 @Client.on_message(filters.command(["channels", "groups"]) & filters.private)
@@ -47,7 +48,7 @@ async def select_for_post(client, query):
     user_id = query.from_user.id
     await States.set_state(user_id, "COLLECT_POSTS", {"chat_id": chat_id, "messages": []})
     await query.edit_message_text(
-        f"📝 **Chat Selected:** `{chat_id}`\n\n"
+        f"📝 **Target Chat Selected:** `{chat_id}`\n\n"
         "🚀 **Send the posts you want to queue.**\n"
         "✅ You can send text, media, albums, etc.\n"
         "🏁 Type `/done` when you are finished."
@@ -65,12 +66,12 @@ async def done_command(client, message):
         if not userbot or not userbot.is_connected:
             return await message.reply_text("❌ **UserBot disconnected.**")
 
-        chat_id = data["chat_id"]
+        target_chat_id = data["chat_id"]
         messages = data["messages"]
         if not messages:
             return await message.reply_text("⚠️ **No posts collected.**")
 
-        status = await message.reply_text(f"🚀 **Dispatching items...**")
+        status = await message.reply_text(f"🚀 **Dispatching items to `{target_chat_id}`...**")
         stickers = await get_stickers()
         sticker_mode = await get_setting("random_sticker_mode", False)
 
@@ -99,26 +100,30 @@ async def done_command(client, message):
         for item in grouped:
             try:
                 if isinstance(item, list):
-                    # Fixed media group logic: need all message IDs
                     msg_ids = [x["message_id"] for x in item]
                     await userbot.copy_media_group(
-                        chat_id=chat_id,
+                        chat_id=target_chat_id,
                         from_chat_id=item[0]["from_chat_id"],
-                        message_id=msg_ids[0] # Pyrogram uses first ID to identify group
+                        message_id=msg_ids[0]
                     )
                 else:
                     orig_msg = await userbot.get_messages(item["from_chat_id"], item["message_id"])
-                    await orig_msg.copy(chat_id)
+                    await orig_msg.copy(chat_id=target_chat_id)
 
-                # Send sticker AFTER every post/group if enabled
                 if sticker_mode and stickers:
-                    await userbot.send_sticker(chat_id, random.choice(stickers))
+                    await userbot.send_sticker(target_chat_id, random.choice(stickers))
 
                 await asyncio.sleep(1)
+            except FloodWait as fw:
+                await message.reply_text(f"⚠️ **FloodWait:** Waiting {fw.value}s before continuing...")
+                await asyncio.sleep(fw.value)
+                # Retry logic or skip could be added here
+            except RPCError as e:
+                await message.reply_text(f"❌ **Telegram Error:** `{e}`")
             except Exception as e:
                 await message.reply_text(f"❌ **Error during posting:** `{e}`")
 
-        await status.edit_text("✅ **All posts have been successfully delivered!**")
+        await status.edit_text(f"✅ **All posts have been delivered to `{target_chat_id}`!**")
         await States.clear_state(user_id)
 
     elif state == "COLLECT_STICKERS":
