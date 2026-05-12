@@ -70,7 +70,8 @@ async def finalize_creation(client, query_or_msg, user_id=None):
         # --- AUTO ADMIN PROMOTION ---
         try:
             bot_me = await client.get_me()
-            await userbot.add_chat_members(chat.id, bot_me.id)
+            # In Telegram, you can promote a bot without adding it as a member first,
+            # especially in channels. This avoids the [400 USER_BOT] error.
             await userbot.promote_chat_member(
                 chat.id,
                 bot_me.id,

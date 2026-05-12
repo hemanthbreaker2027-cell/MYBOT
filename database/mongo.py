@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
+MONGO_URI = os.getenv("MONGO_URI") or os.getenv("MONGO_URL")
 client = AsyncIOMotorClient(MONGO_URI) if MONGO_URI else None
 db = client["userbot_manager"] if client else None
 
